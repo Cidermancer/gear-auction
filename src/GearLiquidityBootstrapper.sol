@@ -133,7 +133,6 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
 
     constructor() {
         _transferOwnership(GEARBOX_TREASURY);
-        _startGearDeposit();
     }
 
     modifier withMinerSwitch(address newMiner) {
@@ -180,19 +179,25 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
 
         if (stage == Stage.INITIALIZED && block.timestamp >= gearDepositStart) {
             _startGearDeposit();
-        } else if (stage == Stage.GEAR_DEPOSIT && block.timestamp >= ethDepositStart) {
+        } 
+        
+        if (stage == Stage.GEAR_DEPOSIT && block.timestamp >= ethDepositStart) {
             if (totalGearCommitted >= gearMinAmount) {
                 _startEthDeposit();
             } else {
                 _fail();
             }
-        } else if (stage == Stage.ETH_DEPOSIT && block.timestamp >= fairTradingStart) {
+        } 
+        
+        if (stage == Stage.ETH_DEPOSIT && block.timestamp >= fairTradingStart) {
             if (totalEthCommitted >= ethMinAmount) {
                 _startFairTrading();
             } else {
                 _fail();
             }
-        } else if (stage == Stage.FAIR_TRADING && block.timestamp >= fairTradingEnd) {
+        } 
+        
+        if (stage == Stage.FAIR_TRADING && block.timestamp >= fairTradingEnd) {
             _finish();
         }
     }
@@ -233,7 +238,7 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
     }
 
     function _deployPool() internal {
-        uint256 initialPrice = totalEthCommitted * PRICE_MULTIPLIER / totalGearCommitted;
+        uint256 initialPrice = totalGearCommitted * PRICE_MULTIPLIER / totalEthCommitted;
 
         address poolAddress = curveFactory.deploy_pool(
             "Curve GEAR/ETH",
@@ -280,15 +285,16 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
             amount = gearMaxAmount - totalGearCommitted;
         }
 
+        require(
+            amount > 0,
+            "Nothing to commit"
+        );
+
         gear.safeTransferFrom(msg.sender, address(this), amount);
         gearCommitted[msg.sender] += amount;
         totalGearCommitted += amount;
 
         emit GearCommitted(msg.sender, amount);
-
-        if (totalGearCommitted == gearMaxAmount) {
-            _startEthDeposit();
-        }
     }
 
     // ETH DEPOSIT LOGIC
@@ -310,14 +316,15 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
             payable(msg.sender).transfer(msg.value - amount);
         }
 
+        require(
+            amount > 0,
+            "Nothing to commit"
+        );
+
         ethCommitted[msg.sender] += amount;
         totalEthCommitted += amount;
 
         emit EthCommitted(msg.sender, amount);
-
-        if (totalEthCommitted == ethMaxAmount) {
-            _startFairTrading();
-        }
     }
 
     // FAIR TRADING LOGIC
@@ -394,10 +401,10 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
 
     function _getCurrentMinMaxAmounts() internal view returns(uint256 minGear, uint256 maxGear, uint256 minEth, uint256 maxEth) {
         minGear = totalGearCommitted <= gearMinAmount ? gearMinAmount : totalGearCommitted;
-        maxGear = stage > Stage.GEAR_DEPOSIT ? totalGearCommitted : gearMaxAmount;
+        maxGear = block.timestamp >= ethDepositStart ? totalGearCommitted : gearMaxAmount;
 
         minEth = totalEthCommitted <= ethMinAmount ? ethMinAmount : totalEthCommitted;
-        maxEth = stage > Stage.ETH_DEPOSIT ? totalEthCommitted : ethMaxAmount;
+        maxEth = block.timestamp >= fairTradingStart ? totalEthCommitted : ethMaxAmount;
     }
 
     // Returns ETH / GEAR price range

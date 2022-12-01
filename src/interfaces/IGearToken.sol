@@ -11,5 +11,9 @@ interface IGearToken is IERC20 {
 
     function miner() external view returns (address);
 
+    function manager() external view returns (address);
+
     function balances(int128 i) external view returns (uint256);
+
+    function transfersAllowed() external view returns (bool);
 }
