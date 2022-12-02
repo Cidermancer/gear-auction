@@ -91,6 +91,9 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
 
     // End of GEAR discounted selling
     uint256 public constant fairTradingEnd = GEAR_DEPOSIT_START + GEAR_DEPOSIT_DURATION + ETH_DEPOSIT_DURATION + FAIR_TRADING_DURATION;
+    
+    // Duration of GEAR discounted selling
+    uint256 public constant fairTradingDuration = FAIR_TRADING_DURATION;
 
     // Initial shearing percentage for GEAR selling (in 1e18 format)
     uint256 public constant shearingPctStart = STARTING_SHEARING_PCT;
@@ -177,24 +180,41 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
 
     function _advanceStage() internal {
 
-        if (stage == Stage.INITIALIZED && block.timestamp >= gearDepositStart) {
-            _startGearDeposit();
+        if (stage == Stage.FINISHED || stage == Stage.FAILED) {
+            return;
+        }
+
+        if (stage == Stage.INITIALIZED) {
+            if (block.timestamp >= gearDepositStart) {
+                _startGearDeposit();
+            } else {
+                return;
+            }
         } 
         
-        if (stage == Stage.GEAR_DEPOSIT && block.timestamp >= ethDepositStart) {
-            if (totalGearCommitted >= gearMinAmount) {
+        if (stage == Stage.GEAR_DEPOSIT) {
+            if (block.timestamp >= fairTradingStart) {
                 _startEthDeposit();
-            } else {
                 _fail();
-            }
+            } else if (block.timestamp >= ethDepositStart) {
+                if (totalGearCommitted >= gearMinAmount) {
+                    _startEthDeposit();
+                } else {
+                    _fail();
+                }
+            } 
+            return;
         } 
         
         if (stage == Stage.ETH_DEPOSIT && block.timestamp >= fairTradingStart) {
-            if (totalEthCommitted >= ethMinAmount) {
-                _startFairTrading();
-            } else {
-                _fail();
+            if (block.timestamp >= fairTradingStart) {
+                if (totalEthCommitted >= ethMinAmount) {
+                    _startFairTrading();
+                } else {
+                    _fail();
+                }
             }
+            return;
         } 
         
         if (stage == Stage.FAIR_TRADING && block.timestamp >= fairTradingEnd) {
@@ -333,7 +353,7 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
 
         gear.safeTransferFrom(msg.sender, address(this), amount);
 
-        uint256 currentShearingPct = shearingPctStart * (fairTradingEnd - block.timestamp) / (fairTradingEnd - fairTradingStart);
+        uint256 currentShearingPct = shearingPctStart * (fairTradingEnd - block.timestamp) / fairTradingDuration;
 
         uint256 shearedAmount = amount * currentShearingPct / SHEARING_PCT_DENOMINATOR;
         uint256 amountToSell = amount - shearedAmount;

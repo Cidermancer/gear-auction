@@ -22,7 +22,7 @@ contract GearLiquidityBootstrapperTest is Test {
     }
 
     function _transferGearManager() internal {
-        vm.prank(GEARBOX_TECH_MULTISIG);
+        vm.prank(gearToken.manager());
         gearToken.transferOwnership(address(glb));
     }
 
