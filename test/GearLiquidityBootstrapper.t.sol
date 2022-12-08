@@ -1097,4 +1097,64 @@ contract GearLiquidityBootstrapperTest is Test {
 
 
     }
+
+    function test_22_fairTrading_getters() public {
+        _fastForwardFairTrading();
+
+        glb.advanceStage();
+
+        uint256 swappedAmount = 100000 * 10 ** 18;
+
+        uint256 expectedCurrentShear = STARTING_SHEARING_PCT;
+
+        uint256 sheared = expectedCurrentShear * swappedAmount / 10 ** 18;
+
+        uint256 sold = swappedAmount - sheared;
+
+        uint256 expectedETHAmount = glb.curvePool().get_dy(0, 1, sold);
+
+        assertEq(
+            glb.getCurrentShearingPct(),
+            expectedCurrentShear,
+            "Incorrect shearing pct"
+        );
+
+        assertEq(
+            glb.getETHFromGEARAmount(swappedAmount),
+            expectedETHAmount,
+            "Incorrect ETH amount retrieved"
+        );
+
+        vm.warp((glb.fairTradingStart() + glb.fairTradingEnd()) / 2);
+
+        expectedCurrentShear = STARTING_SHEARING_PCT / 2;
+
+        sheared = expectedCurrentShear * swappedAmount / 10 ** 18;
+
+        sold = swappedAmount - sheared;
+
+        expectedETHAmount = glb.curvePool().get_dy(0, 1, sold);
+
+        assertEq(
+            glb.getCurrentShearingPct(),
+            expectedCurrentShear,
+            "Incorrect shearing pct"
+        );
+
+        assertEq(
+            glb.getETHFromGEARAmount(swappedAmount),
+            expectedETHAmount,
+            "Incorrect ETH amount retrieved"
+        );
+
+        uint256 swappedETHAmount = 10 ** 18;
+
+        uint256 expectedGEARAmount = glb.curvePool().get_dy(1, 0, swappedETHAmount);
+
+        assertEq(
+            glb.getGEARFromETHAmount(swappedETHAmount),
+            expectedGEARAmount,
+            "Incorrect GEAR amount retrieved"
+        );
+    }
 }

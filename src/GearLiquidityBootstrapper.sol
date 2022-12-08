@@ -372,6 +372,26 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
         emit GearBought(msg.sender, gearAmount);
     }
 
+    function getCurrentShearingPct() external view returns (uint256) {
+        return block.timestamp >= fairTradingEnd ? 0 : shearingPctStart * (fairTradingEnd - block.timestamp) / fairTradingDuration;
+    }
+
+    function getETHFromGEARAmount(uint256 amount) external view returns (uint256) {
+
+        if (stage < Stage.FAIR_TRADING) {
+            return 0;
+        }
+
+        uint256 currentShearingPct = block.timestamp >= fairTradingEnd ? 0 : shearingPctStart * (fairTradingEnd - block.timestamp) / fairTradingDuration;
+        uint256 amountToSell = amount - amount * currentShearingPct / SHEARING_PCT_DENOMINATOR;
+
+        return curvePool.get_dy(0, 1, amountToSell);
+    }
+
+    function getGEARFromETHAmount(uint256 amount) external view returns (uint256) {
+        return curvePool.get_dy(1, 0, amount);
+    }
+
     // FINISHED LOGIC
 
     function claimLP() external onlyStage(Stage.FINISHED) {
