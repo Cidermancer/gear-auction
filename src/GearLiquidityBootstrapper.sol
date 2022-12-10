@@ -23,7 +23,6 @@ enum Stage {
 }
 
 contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
-    using SafeERC20 for IGearToken;
     using SafeERC20 for IERC20;
     using Address for address;
 
@@ -180,44 +179,48 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
 
     function _advanceStage() internal {
 
-        if (stage == Stage.FINISHED || stage == Stage.FAILED) {
+        Stage currentStage = stage;
+
+        if (currentStage == Stage.FINISHED || currentStage == Stage.FAILED) {
             return;
         }
 
-        if (stage == Stage.INITIALIZED) {
+        if (currentStage == Stage.INITIALIZED) {
             if (block.timestamp >= gearDepositStart) {
-                _startGearDeposit();
-            } else {
-                return;
+                if (block.timestamp >= ethDepositStart) {
+                    _fail();
+                } else {
+                    _startGearDeposit();
+                }
             }
+            return;
         } 
         
-        if (stage == Stage.GEAR_DEPOSIT) {
-            if (block.timestamp >= fairTradingStart) {
-                _startEthDeposit();
-                _fail();
-            } else if (block.timestamp >= ethDepositStart) {
-                if (totalGearCommitted >= gearMinAmount) {
-                    _startEthDeposit();
-                } else {
+        if (currentStage == Stage.GEAR_DEPOSIT) {
+            if (block.timestamp >= ethDepositStart) {
+                if (block.timestamp >= fairTradingStart || totalGearCommitted < gearMinAmount) {
                     _fail();
+                } else {
+                    _startEthDeposit();
                 }
             } 
             return;
         } 
         
-        if (stage == Stage.ETH_DEPOSIT && block.timestamp >= fairTradingStart) {
-            if (block.timestamp >= fairTradingStart) {
-                if (totalEthCommitted >= ethMinAmount) {
-                    _startFairTrading();
+        if (currentStage == Stage.ETH_DEPOSIT && block.timestamp >= fairTradingStart) {
+            if (totalEthCommitted >= ethMinAmount) {
+                if (block.timestamp >= fairTradingEnd) {
+                    _finish();
                 } else {
-                    _fail();
+                    _startFairTrading();
                 }
+            } else {
+                _fail();
             }
             return;
         } 
         
-        if (stage == Stage.FAIR_TRADING && block.timestamp >= fairTradingEnd) {
+        if (currentStage == Stage.FAIR_TRADING && block.timestamp >= fairTradingEnd) {
             _finish();
         }
     }
@@ -284,9 +287,13 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
     }
 
     function _depositToPool() internal withMinerSwitch(address(curvePool)) {
-        totalLPTokens = curvePool.add_liquidity{value: totalEthCommitted}([totalGearCommitted, totalEthCommitted], 0, true);
 
-        emit PoolSeeded(totalGearCommitted, totalEthCommitted, totalLPTokens);
+        uint256 totalEthCommitted_ = totalEthCommitted;
+        uint256 totalGearCommitted_ = totalGearCommitted;
+
+        totalLPTokens = curvePool.add_liquidity{value: totalEthCommitted_}([totalGearCommitted_, totalEthCommitted_], 0, true);
+
+        emit PoolSeeded(totalGearCommitted_, totalEthCommitted_, totalLPTokens);
     }
 
     function _unlockGEAR() internal {
@@ -301,8 +308,10 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
 
     function commitGEAR(uint256 amount) external onlyStage(Stage.GEAR_DEPOSIT) {
 
-        if (totalGearCommitted + amount > gearMaxAmount) {
-            amount = gearMaxAmount - totalGearCommitted;
+        uint256 totalGearCommitted_ = totalGearCommitted;
+
+        if (totalGearCommitted_ + amount > gearMaxAmount) {
+            amount = gearMaxAmount - totalGearCommitted_;
         }
 
         require(
@@ -310,7 +319,7 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
             "Nothing to commit"
         );
 
-        gear.safeTransferFrom(msg.sender, address(this), amount);
+        gear.transferFrom(msg.sender, address(this), amount);
         gearCommitted[msg.sender] += amount;
         totalGearCommitted += amount;
 
@@ -330,10 +339,11 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
     function _commitETH() internal {
 
         uint256 amount = msg.value;
+        uint256 totalEthCommitted_ = totalEthCommitted;
 
-        if (totalEthCommitted + amount > ethMaxAmount) {
-            amount = ethMaxAmount - totalEthCommitted;
-            payable(msg.sender).transfer(msg.value - amount);
+        if (totalEthCommitted_ + amount > ethMaxAmount) {
+            amount = ethMaxAmount - totalEthCommitted_;
+            payable(msg.sender).call{value: msg.value - amount}("");
         }
 
         require(
@@ -351,9 +361,9 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
 
     function sellGEAR(uint256 amount, uint256 minETHBack) external onlyStage(Stage.FAIR_TRADING) withMinerSwitch(address(curvePool)) nonReentrant {
 
-        gear.safeTransferFrom(msg.sender, address(this), amount);
+        gear.transferFrom(msg.sender, address(this), amount);
 
-        uint256 currentShearingPct = shearingPctStart * (fairTradingEnd - block.timestamp) / fairTradingDuration;
+        uint256 currentShearingPct = getCurrentShearingPct();
 
         uint256 shearedAmount = amount * currentShearingPct / SHEARING_PCT_DENOMINATOR;
         uint256 amountToSell = amount - shearedAmount;
@@ -372,8 +382,14 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
         emit GearBought(msg.sender, gearAmount);
     }
 
-    function getCurrentShearingPct() external view returns (uint256) {
-        return block.timestamp >= fairTradingEnd ? 0 : shearingPctStart * (fairTradingEnd - block.timestamp) / fairTradingDuration;
+    function getCurrentShearingPct() public view returns (uint256) {
+        if (block.timestamp < fairTradingStart) {
+            return shearingPctStart;
+        } else if (block.timestamp >= fairTradingEnd) {
+            return 0;
+        } else {
+            return shearingPctStart * (fairTradingEnd - block.timestamp) / fairTradingDuration;
+        }
     }
 
     function getETHFromGEARAmount(uint256 amount) external view returns (uint256) {
@@ -382,7 +398,7 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
             return 0;
         }
 
-        uint256 currentShearingPct = block.timestamp >= fairTradingEnd ? 0 : shearingPctStart * (fairTradingEnd - block.timestamp) / fairTradingDuration;
+        uint256 currentShearingPct = getCurrentShearingPct();
         uint256 amountToSell = amount - amount * currentShearingPct / SHEARING_PCT_DENOMINATOR;
 
         return curvePool.get_dy(0, 1, amountToSell);
@@ -412,7 +428,7 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
     }
 
     function retrieveShearedGEAR() external onlyStage(Stage.FINISHED) onlyOwner {
-        gear.safeTransfer(owner(), gear.balanceOf(address(this)));
+        gear.transfer(owner(), gear.balanceOf(address(this)));
     }
 
     // FAILED LOGIC
@@ -422,7 +438,7 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
         uint256 amount = gearCommitted[msg.sender];
         gearCommitted[msg.sender] = 0;
 
-        gear.safeTransfer(msg.sender, amount);
+        gear.transfer(msg.sender, amount);
     }
 
     function retrieveETH() external onlyStage(Stage.FAILED) nonReentrant {
@@ -430,7 +446,7 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
         uint256 amount = ethCommitted[msg.sender];
         ethCommitted[msg.sender] = 0;
 
-        payable(msg.sender).transfer(amount);
+        payable(msg.sender).call{value: amount}("");
     }
 
     function takeGEARManagerBack() external onlyStage(Stage.FAILED) onlyOwner {
@@ -440,11 +456,15 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
     // CONVENIENCE GETTERS
 
     function _getCurrentMinMaxAmounts() internal view returns(uint256 minGear, uint256 maxGear, uint256 minEth, uint256 maxEth) {
-        minGear = totalGearCommitted <= gearMinAmount ? gearMinAmount : totalGearCommitted;
-        maxGear = block.timestamp >= ethDepositStart ? totalGearCommitted : gearMaxAmount;
 
-        minEth = totalEthCommitted <= ethMinAmount ? ethMinAmount : totalEthCommitted;
-        maxEth = block.timestamp >= fairTradingStart ? totalEthCommitted : ethMaxAmount;
+        uint256 totalGearCommitted_ = totalGearCommitted;
+        uint256 totalEthCommitted_ = totalEthCommitted;
+
+        minGear = totalGearCommitted_ <= gearMinAmount ? gearMinAmount : totalGearCommitted_;
+        maxGear = block.timestamp >= ethDepositStart ? totalGearCommitted_ : gearMaxAmount;
+
+        minEth = totalEthCommitted_ <= ethMinAmount ? ethMinAmount : totalEthCommitted_;
+        maxEth = block.timestamp >= fairTradingStart ? totalEthCommitted_ : ethMaxAmount;
     }
 
     // Returns ETH / GEAR price range
@@ -466,8 +486,11 @@ contract GearLiquidityBootstrapper is Ownable, ReentrancyGuard {
     }
 
     function getPendingLPAmount() public view returns (uint256 lpAmount) {
-       lpAmount = gearCommitted[msg.sender] * totalLPTokens / (2 * totalGearCommitted) + 
-                           ethCommitted[msg.sender] * totalLPTokens / (2 * totalEthCommitted);
+
+       uint256 totalLPTokens_ = totalLPTokens; 
+
+       lpAmount = gearCommitted[msg.sender] * totalLPTokens_ / (2 * totalGearCommitted) + 
+                           ethCommitted[msg.sender] * totalLPTokens_ / (2 * totalEthCommitted);
     }
 
     function getTimeUntilLPClaim() external view returns (uint256 lpAmount) {
