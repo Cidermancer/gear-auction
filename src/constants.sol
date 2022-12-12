@@ -12,19 +12,19 @@ address constant DUMMY2 = 0xc4375B7dE8Af5a38A93548Eb8453A498222C4ff3;
 
 uint256 constant MAX_INT = type(uint256).max;
 
-uint256 constant GEAR_MAX_AMOUNT = 235_000_000 * 10 ** 18;
-uint256 constant GEAR_MIN_AMOUNT = 135_000_000 * 10 ** 18;
+uint256 constant GEAR_MAX_AMOUNT = 160_000_000 * 10 ** 18;
+uint256 constant GEAR_MIN_AMOUNT = 120_000_000 * 10 ** 18;
 
-uint256 constant ETH_MAX_AMOUNT = 2500 * 10 ** 18;
+uint256 constant ETH_MAX_AMOUNT = 3000 * 10 ** 18;
 uint256 constant ETH_MIN_AMOUNT = 2000 * 10 ** 18;
 
-uint256 constant GEAR_DEPOSIT_START = 1671148800;
+uint256 constant GEAR_DEPOSIT_START = 1670889600;
 
 uint256 constant GEAR_DEPOSIT_DURATION = 2 days;
 uint256 constant ETH_DEPOSIT_DURATION = 2 days;
 
-uint256 constant FAIR_TRADING_DURATION = 14 days;
-uint256 constant STARTING_SHEARING_PCT = 3 * 10 ** 17;
+uint256 constant FAIR_TRADING_DURATION = 6 days;
+uint256 constant STARTING_SHEARING_PCT = 25 * 10 ** 16;
 
 uint256 constant DEFAULT_A = 400000;
 uint256 constant DEFAULT_GAMMA = 145000000000000;

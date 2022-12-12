@@ -9,6 +9,8 @@ import {IGearToken} from "../src/interfaces/IGearToken.sol";
 import {ICurvePool} from "../src/interfaces/ICurvePool.sol";
 import "../src/constants.sol";
 
+uint256 constant FAIR_TRADING_SELL_SIZE = 1_000_000 * 10 ** 18;
+
 contract GearLiquidityBootstrapperTest is Test {
     GearLiquidityBootstrapper public glb;
     IGearToken public gearToken;
@@ -79,13 +81,13 @@ contract GearLiquidityBootstrapperTest is Test {
 
         glb.advanceStage();
 
-        deal(address(gearToken), DUMMY, 1_000_000 * 10 ** 18);
+        deal(address(gearToken), DUMMY, FAIR_TRADING_SELL_SIZE);
 
         vm.prank(DUMMY);
-        gearToken.approve(address(glb), 1_000_000 * 10 ** 18);
+        gearToken.approve(address(glb), FAIR_TRADING_SELL_SIZE);
 
         vm.prank(DUMMY);
-        glb.sellGEAR(1_000_000 * 10 ** 18, 0);
+        glb.sellGEAR(FAIR_TRADING_SELL_SIZE, 0);
 
         vm.warp(glb.fairTradingEnd());
     }
@@ -850,7 +852,7 @@ contract GearLiquidityBootstrapperTest is Test {
 
         assertEq(
             gearToken.balanceOf(GEARBOX_TREASURY) - initialBalance,
-            300_000 * 10 ** 18,
+            FAIR_TRADING_SELL_SIZE * STARTING_SHEARING_PCT / 10 ** 18,
             "Incorrect amount was sent"
         );
     }
