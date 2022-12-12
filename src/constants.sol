@@ -18,7 +18,7 @@ uint256 constant GEAR_MIN_AMOUNT = 120_000_000 * 10 ** 18;
 uint256 constant ETH_MAX_AMOUNT = 3000 * 10 ** 18;
 uint256 constant ETH_MIN_AMOUNT = 2000 * 10 ** 18;
 
-uint256 constant GEAR_DEPOSIT_START = 1670889600;
+uint256 constant GEAR_DEPOSIT_START = 1670918400;
 
 uint256 constant GEAR_DEPOSIT_DURATION = 2 days;
 uint256 constant ETH_DEPOSIT_DURATION = 2 days;
