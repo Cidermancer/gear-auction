@@ -12,10 +12,10 @@ address constant DUMMY2 = 0xc4375B7dE8Af5a38A93548Eb8453A498222C4ff3;
 
 uint256 constant MAX_INT = type(uint256).max;
 
-uint256 constant ETH_MAX_AMOUNT = 3000 * 10 ** 18;
-uint256 constant ETH_MIN_AMOUNT = 2000 * 10 ** 18;
+uint256 constant ETH_GEAR_LOWER = 12500000000000;
+uint256 constant ETH_GEAR_UPPER = 25000000000000;
 
-uint256 constant ETH_DEPOSIT_START = 1671105600;
+uint256 constant ETH_DEPOSIT_START = 1671192000;
 
 uint256 constant ETH_DEPOSIT_DURATION = 2 days;
 

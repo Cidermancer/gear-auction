@@ -111,18 +111,6 @@ contract GearLiquidityBootstrapperTest is Test {
         );
 
         assertEq(
-            glb.ethMaxAmount(),
-            ETH_MAX_AMOUNT,
-            "ETH max amount incorrect"
-        );
-
-        assertEq(
-            glb.ethMinAmount(),
-            ETH_MIN_AMOUNT,
-            "ETH min amount incorrect"
-        );
-
-        assertEq(
             glb.fairTradingStart(),
             ETH_DEPOSIT_START + ETH_DEPOSIT_DURATION,
             "Fair trading start incorrect"
@@ -289,19 +277,31 @@ contract GearLiquidityBootstrapperTest is Test {
             gearRemainder,
             "Incorrect total GEAR committed"
         );
+
+        assertEq(
+            glb.ethMinAmount(),
+            gearRemainder * ETH_GEAR_LOWER / 10 ** 18,
+            "Lower ETH limit incorrect"
+        );
+
+        assertEq(
+            glb.ethMaxAmount(),
+            gearRemainder * ETH_GEAR_UPPER / 10 ** 18,
+            "Upper ETH limit incorrect"
+        );
     }
 
     function test_2_07_commitETH() public {
 
+        vm.expectRevert("Can't be called during the current stage");
+        vm.prank(DUMMY);
+        glb.commitETH{value: 0}();
+
+        _fastForwardEthDeposit();
+
         uint256 maxAmount = glb.ethMaxAmount();
 
         deal(DUMMY, maxAmount/ 2);
-
-        vm.expectRevert("Can't be called during the current stage");
-        vm.prank(DUMMY);
-        glb.commitETH{value: maxAmount / 4}();
-
-        _fastForwardEthDeposit();
 
         assertEq(
             uint8(glb.stage()),
@@ -362,27 +362,31 @@ contract GearLiquidityBootstrapperTest is Test {
         vm.prank(DUMMY2);
         (, res) = payable(address(glb)).call{value: maxAmount * 3 / 4}("");
 
-        assertEq(
+        assertApproxEqAbs(
             glb.totalEthCommitted(),
             maxAmount,
+            1,
             "Incorrect total committed"
         );
 
-        assertEq(
+        assertApproxEqAbs(
             glb.ethCommitted(DUMMY2),
             maxAmount / 2,
+            1,
             "Incorrect committed by user"
         );
 
-        assertEq(
+        assertApproxEqAbs(
             payable(address(glb)).balance,
             maxAmount,
+            1,
             "Incorrect contract ETH balance"
         );
 
-        assertEq(
+        assertApproxEqAbs(
             payable(DUMMY2).balance,
             maxAmount / 4,
+            1,
             "Incorrect amount returned to sender"
         );
 
@@ -438,12 +442,12 @@ contract GearLiquidityBootstrapperTest is Test {
     function test_2_09D_advanceStage_to_failed() public {
         _fastForwardEthDeposit();
 
-        uint256 maxAmount = glb.ethMaxAmount();
+        uint256 minAmount = glb.ethMinAmount();
 
-        deal(DUMMY, maxAmount / 2);
+        deal(DUMMY, minAmount / 2);
 
         vm.prank(DUMMY);
-        glb.commitETH{value: maxAmount / 2}();
+        glb.commitETH{value: minAmount / 2}();
 
         vm.warp(glb.fairTradingStart());
 

@@ -62,10 +62,10 @@ contract GearLiquidityBootstrapper2 is Ownable, ReentrancyGuard {
     // ETH DEPOSIT PARAMS
 
     // Max ETH amount collected
-    uint256 public constant ethMaxAmount = ETH_MAX_AMOUNT;
+    uint256 public ethMaxAmount;
 
     // Min ETH amount collected
-    uint256 public constant ethMinAmount = ETH_MIN_AMOUNT;
+    uint256 public ethMinAmount;
 
     // ETH amounts committed by contributors
     mapping(address => uint256) public ethCommitted;
@@ -158,8 +158,16 @@ contract GearLiquidityBootstrapper2 is Ownable, ReentrancyGuard {
     }
 
     function inheritGLB1() external onlyOwner {
+
+        if (totalGearCommitted != 0) {
+            revert("GEAR already transferred");
+        }
+
         uint256 gearBalance = gear.balanceOf(glb1);
         totalGearCommitted = gearBalance;
+        ethMinAmount = totalGearCommitted * ETH_GEAR_LOWER / PRICE_MULTIPLIER;
+        ethMaxAmount = totalGearCommitted * ETH_GEAR_UPPER / PRICE_MULTIPLIER;
+
         gear.transferFrom(glb1, address(this), gearBalance);
     }
 
@@ -302,9 +310,7 @@ contract GearLiquidityBootstrapper2 is Ownable, ReentrancyGuard {
         } else if (stage_ == Stage.FAIR_TRADING && msg.sender == address(curvePool)) {}
         else {
            revert("Can't be called during the current stage");
-        } 
-
-       
+        }       
     }
 
     function _commitETH() internal nonReentrant {
